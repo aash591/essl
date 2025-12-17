@@ -1,0 +1,17 @@
+services:
+  essl-dashboard:
+    image: aash591/essl:v1.23
+    container_name: essl
+
+    ports:
+      - "5000:3000"
+
+    # Load environment variables from your existing .env.local file
+    # (make sure it lives next to this docker-compose.yml)
+    env_file:
+      - .env.local
+
+
+    # Always restart unless explicitly stopped
+    restart: unless-stopped
+

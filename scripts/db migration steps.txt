@@ -1,0 +1,13 @@
+Database Migration Steps
+
+## Update Existing Database (Schema Changes)
+1. Edit schema in `src/lib/drizzle/schema/`
+2. npm run db:generate  (generates migration SQL)
+3. npm run db:migrate 
+
+## Alternative: Use Drizzle Kit directly
+npm run db:migrate  (uses drizzle-kit migrate - only for new tables)
+
+
+npm run db:studio  (opens Drizzle Studio)
+

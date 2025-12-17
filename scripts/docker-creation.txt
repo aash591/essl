@@ -1,0 +1,43 @@
+# Docker Creation Commands
+
+# Build with version AND latest (replace v3.1.0 with your version)
+docker build -t aash591/ess;:v3.1.7 -t aash591/essl:latest .
+docker build -t aash591/essl:v1.23 .
+
+# Login to Docker Hub
+docker login
+
+# Push both version and latest
+docker push aash591/essl:v1.23
+docker push aash591/wedsindia:latest
+
+# IMPORTANT: Docker doesn't auto-pull 'latest' tag - you must pull manually
+# Pull latest image from Docker Hub before starting
+docker-compose pull
+
+# Run with docker-compose (will use pulled image)
+docker-compose up -d
+
+# Or combine pull and up in one command (RECOMMENDED for updates)
+docker-compose pull && docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop container
+docker-compose down
+
+# Rebuild and restart (local build, not from hub)
+docker-compose up -d --build
+
+# Force pull latest and restart (use this to update from Docker Hub)
+docker-compose pull && docker-compose up -d --force-recreate
+
+# Check running containers
+docker ps
+
+# Check container logs
+docker logs wedsindia
+
+# List all image versions
+docker images aash591/wedsindia
