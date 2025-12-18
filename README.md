@@ -19,13 +19,19 @@ A modern Next.js-based dashboard for managing ESSL/ZKTeco biometric attendance d
 - Native dependencies that need compilation
 
 ### This Implementation (Modern)
-This application uses **`zkteco-js`**, a pure JavaScript library that implements the ZKTeco communication protocol directly:
+This application uses **`zkteco-js`** as the base library for TCP socket communication, but implements many advanced features as **custom extensions** beyond what `zkteco-js` provides:
 
-1. **TCP Socket Connection**: Creates a direct TCP connection to the device (default port: 4370)
-2. **Protocol Implementation**: Implements the proprietary ZKTeco protocol using raw TCP packets
-3. **Session Management**: Handles session IDs and authentication automatically
-4. **Password Authentication**: Supports device COM passwords using cryptographic key generation
-5. **Command Execution**: Sends and receives commands using the device's native protocol
+**From zkteco-js:**
+- Basic TCP socket connection (port 4370)
+- Protocol handshake and session management
+- Basic user and attendance retrieval (`getUsers()`, `getAttendances()`)
+
+**Custom Implementations (Not in zkteco-js):**
+- **COM Password Authentication**: Custom `makeCommKey()` function for device password authentication
+- **Time Operations**: Custom `encodeTime()`/`decodeTime()` functions for device time get/set operations
+- **Fingerprint Templates**: Custom reading/writing using low-level protocol commands
+- **Template Decoding**: Custom binary parsing for fingerprint template data structures
+- **Advanced Protocol Commands**: Direct implementation of commands like `CMD_AUTH`, `CMD_GET_TIME`, `CMD_SET_TIME`, `CMD_TMP_WRITE`, etc.
 
 ### Connection Flow
 
@@ -40,8 +46,8 @@ Application → zkteco-js → TCP Socket → Biometric Device
 
 - **Protocol**: ZKTeco proprietary TCP/IP protocol
 - **Port**: 4370 (default), configurable
-- **Authentication**: Uses `makeCommKey()` function to generate authentication payloads from device passwords
-- **Commands**: Raw command codes (e.g., `CMD_GET_TIME`, `CMD_AUTH`, `CMD_DB_RRQ`)
+- **Base Library**: `zkteco-js` provides socket connection and basic protocol handling
+- **Custom Features**: Extended with custom implementations for authentication, time management, and fingerprint operations
 - **Data Format**: Binary protocol with little-endian encoding
 
 ## 🛠 Tech Stack
@@ -219,35 +225,102 @@ Make sure your `.env.local` file is in the same directory as `docker-compose.yml
 
 ### Connection Process
 
-1. **Socket Creation**: Uses Node.js `net.Socket` to create TCP connection
-2. **Protocol Handshake**: Implements ZKTeco's proprietary handshake
+1. **Socket Creation**: Uses `zkteco-js` to create TCP connection via Node.js `net.Socket`
+2. **Protocol Handshake**: `zkteco-js` handles ZKTeco's proprietary handshake
 3. **Session ID**: Receives session ID from device for authenticated commands
-4. **Password Auth** (if required): Generates auth key using `makeCommKey(password, sessionId)`
-5. **Command Execution**: Sends binary commands following ZKTeco protocol format
+4. **Password Auth** (custom): Generates auth key using custom `makeCommKey(password, sessionId)` function
+5. **Command Execution**: Uses low-level `ztcp.executeCmd()` for custom protocol commands
 
-### Example Connection Code
+### What zkteco-js Provides
+
 ```typescript
 import ZKLib from "zkteco-js";
 
 const zkInstance = new ZKLib(deviceIP, 4370, timeout, 4000);
-await zkInstance.createSocket(); // Creates TCP connection
+await zkInstance.createSocket(); // Creates TCP connection (from zkteco-js)
+const users = await zkInstance.getUsers(); // Basic user retrieval (from zkteco-js)
+const attendance = await zkInstance.getAttendances(); // Basic attendance retrieval (from zkteco-js)
 ```
 
-### Authentication Flow
+### Custom Implementations Beyond zkteco-js
+
+#### 1. COM Password Authentication
+`zkteco-js` does not support device COM password authentication. This project implements it:
+
 ```typescript
-// If device has COM password
+// Custom implementation in src/lib/zk-utils.ts
+import { makeCommKey, CMD_AUTH } from "@/lib/zk-utils";
+
 const sessionId = zkInstance.ztcp.sessionId;
-const authPayload = makeCommKey(parseInt(password), sessionId);
+const authPayload = makeCommKey(parseInt(password), sessionId); // Custom function
 const authBuf = Buffer.alloc(4);
 authBuf.writeUInt32LE(authPayload, 0);
-await zkInstance.executeCmd(CMD_AUTH, authBuf);
+await zkInstance.executeCmd(CMD_AUTH, authBuf); // Custom command
 ```
 
-### Data Retrieval
-- **Users**: `zkInstance.getUsers()` - Returns user list from device
-- **Attendance**: `zkInstance.getAttendances()` - Returns all attendance logs
-- **Templates**: Custom command `CMD_DB_RRQ` with `EF_FINGER` parameter
-- **Device Info**: `zkInstance.getInfo()` - Returns device status
+#### 2. Device Time Operations
+`zkteco-js` does not provide time get/set functionality. This project implements it:
+
+```typescript
+// Custom time encoding/decoding (src/app/api/device/time/set/route.ts)
+const CMD_GET_TIME = 201;
+const CMD_SET_TIME = 202;
+
+// Custom encodeTime() function
+const encodedTime = encodeTime(new Date()); // Custom implementation
+const timeBuf = Buffer.alloc(4);
+timeBuf.writeUInt32LE(encodedTime, 0);
+await zk.ztcp.executeCmd(CMD_SET_TIME, timeBuf); // Custom command
+
+// Custom decodeTime() function
+const timeInt = resp.readUInt32LE(8);
+const deviceTime = decodeTime(timeInt); // Custom implementation
+```
+
+#### 3. Fingerprint Template Reading
+`zkteco-js` does not support reading fingerprint templates. This project implements it:
+
+```typescript
+// Custom fingerprint reading (src/lib/zkDevice.ts)
+const CMD_DB_RRQ = 7;
+const GET_TEMPLATES = Buffer.from([0x01, 0x07, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+const result = await zkInstance.ztcp.readWithBuffer(GET_TEMPLATES);
+const templates = decodeTemplateData(result.data); // Custom binary parsing
+```
+
+#### 4. Fingerprint Template Writing
+`zkteco-js` does not support writing fingerprint templates. This project implements the SSR Protocol:
+
+```typescript
+// Custom fingerprint writing using SSR Protocol (src/lib/zkDevice.ts)
+const CMD_PREPARE_DATA = 1500;
+const CMD_DATA = 1501;
+const CMD_TMP_WRITE = 87;
+
+// Step 1: Prepare data
+await zkInstance.ztcp.executeCmd(CMD_PREPARE_DATA, sizeBuf);
+
+// Step 2: Send template data
+await zkInstance.ztcp.executeCmd(CMD_DATA, rawTemplate);
+
+// Step 3: Write template with metadata
+await zkInstance.ztcp.executeCmd(CMD_TMP_WRITE, metaBuf);
+```
+
+### Summary: Custom vs Library Features
+
+| Feature | Source |
+|---------|--------|
+| TCP Socket Connection | `zkteco-js` |
+| Basic User Retrieval | `zkteco-js` |
+| Basic Attendance Retrieval | `zkteco-js` |
+| **COM Password Authentication** | **Custom Implementation** |
+| **Time Get/Set Operations** | **Custom Implementation** |
+| **Fingerprint Template Reading** | **Custom Implementation** |
+| **Fingerprint Template Writing** | **Custom Implementation** |
+| **Template Binary Decoding** | **Custom Implementation** |
+| Advanced Protocol Commands | Custom Implementation |
 
 ## 🗄 Database Schema
 
@@ -277,13 +350,6 @@ npm run db:migrate   # Run migrations
 npm run db:push      # Push schema to database
 npm run db:studio    # Open Drizzle Studio
 ```
-
-## 🔒 Security Considerations
-
-- Device passwords are stored in the database (encrypted at rest recommended)
-- Device connections use TCP/IP over local network (ensure network security)
-- API endpoints should be protected in production
-- Database credentials should be kept secure (never commit `.env.local`)
 
 ## 🐛 Troubleshooting
 
