@@ -385,7 +385,7 @@ Contributions are welcome! Please ensure:
 
 ## 📄 License
 
-[Specify your license here]
+[MIT]
 
 ## 👤 Author
 
