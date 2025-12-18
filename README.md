@@ -242,10 +242,10 @@ const users = await zkInstance.getUsers(); // Basic user retrieval (from zkteco-
 const attendance = await zkInstance.getAttendances(); // Basic attendance retrieval (from zkteco-js)
 ```
 
-### Custom Implementations Beyond zkteco-js
+### Additional Custom Implementations
 
 #### 1. COM Password Authentication
-`zkteco-js` does not support device COM password authentication. This project implements it:
+This project implements device COM password authentication using a custom authentication flow:
 
 ```typescript
 // Custom implementation in src/lib/zk-utils.ts
@@ -259,7 +259,7 @@ await zkInstance.executeCmd(CMD_AUTH, authBuf); // Custom command
 ```
 
 #### 2. Device Time Operations
-`zkteco-js` does not provide time get/set functionality. This project implements it:
+This project implements device time get/set operations with custom encoding/decoding functions:
 
 ```typescript
 // Custom time encoding/decoding (src/app/api/device/time/set/route.ts)
@@ -278,7 +278,7 @@ const deviceTime = decodeTime(timeInt); // Custom implementation
 ```
 
 #### 3. Fingerprint Template Reading
-`zkteco-js` does not support reading fingerprint templates. This project implements it:
+This project implements fingerprint template reading using low-level protocol commands:
 
 ```typescript
 // Custom fingerprint reading (src/lib/zkDevice.ts)
@@ -290,7 +290,7 @@ const templates = decodeTemplateData(result.data); // Custom binary parsing
 ```
 
 #### 4. Fingerprint Template Writing
-`zkteco-js` does not support writing fingerprint templates. This project implements the SSR Protocol:
+This project implements fingerprint template writing using the SSR Protocol:
 
 ```typescript
 // Custom fingerprint writing using SSR Protocol (src/lib/zkDevice.ts)
